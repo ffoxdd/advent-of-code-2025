@@ -5,6 +5,7 @@ use std::io;
 const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
 pub mod day01;
+pub mod day02;
 
 pub fn input_for_day(day: u8) -> io::Result<Vec<String>> {
     let directory = PathBuf::from(MANIFEST_DIR).join("input");
