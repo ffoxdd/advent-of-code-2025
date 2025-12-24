@@ -11,6 +11,7 @@ pub mod day04;
 pub mod day05;
 pub mod day06;
 pub mod day07;
+pub mod day08;
 
 pub fn input_for_day(day: u8) -> io::Result<Vec<String>> {
     let directory = PathBuf::from(MANIFEST_DIR).join("input");
