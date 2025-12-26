@@ -6,9 +6,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let machines = Machine::parse_all(&_input)?;
 
-    for machine in machines {
-        println!("machine: {:?}", machine);
-    }
+    let minimal_button_presses_to_solve: usize = machines.iter()
+        .map(|machine| machine.min_button_press_count())
+        .sum();
+
+    println!("Minimal button presses to solve: {}", minimal_button_presses_to_solve);
 
     Ok(())
 }
