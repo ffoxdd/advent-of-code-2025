@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
 #[derive(Debug)]
 pub struct Machine {
@@ -20,7 +20,7 @@ impl Machine {
         values.iter().map(|value| Machine::try_from(value)).collect()
     }
 
-    pub fn indicator_light_min_button_press_count(&self) -> usize {
+    pub fn min_indicator_light_button_presses(&self) -> usize {
         let mut known_states: HashSet<Vec<bool>> = vec![self.initial_indicator_light_state()].into_iter().collect();
         let mut visited_states: HashSet<Vec<bool>> = HashSet::new();
         let mut button_press_count = 0;
@@ -49,90 +49,64 @@ impl Machine {
         }
     }
 
-    pub fn joltage_min_button_press_count(&self) -> usize {
+    pub fn min_joltage_button_presses(&self) -> u16 {
+        ButtonPressSequence::cartesian_product(&self.valid_button_press_sequences_by_position()).iter()
+            .map(|sequence| sequence.button_presses())
+            .min()
+            .unwrap()
+    }
 
-        // target: (3, 2, 1)
-        //
-        // (1, 0, 0), (0, 1, 0), (0, 0, 1) -> obvious (disjoint)
-        // (1, 1, 0), (1, 0, 0), (0, 0, 1) -> max (2)
-        // wait, can we enumerate all of the options?
-        // for each position, you can have any integer partition for any button that includes that
-        // that means we enumerate all of the integer partitions
-
-        // (3, 2, 1) -> worst case: 6 choices.
-        // | 3 can be split between 0 and 1, 3(0), 2(0) or 1(0)
-        //     | 2 can be split between 0 and 2, 2(0) or 1(0)
-
-        // (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}
-        // (0, 0, 0, 1), (0, 1, 0, 1), (0, 0, 1, 0), (1, 1, 0, 0)
-        // {3,5,4,7}
-        //  |_ can only be 3(3)
-        //    |_ between 1,3: 5(1), 4(1), 3(1), 2(1), 1(1), 0(1)
-        //      |_ only 4(2)
-        //        |_ only 7(0)
-
-        // what about cases where there are more than one option for a position?
-        // (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2} -- this has that
-        // position 0: target 7
-        //   buttons 0, 2, 3; 7(0), 6(0)1(2), 6(0)0(2), 5(0)2(2), 5(0)1(2), 5(0)0(2), ...
-        //     4(0)3(2), 4(0)2(2), 4(0)1(2), 4(0)0(2)
-        //   7 choices for button 0..
-        //   7(0) has 1 total way
-        //   6(0) has 2 total ways
-        //   5(0) has 3 total ways
-        //   4(0) has 4 total ways ...
-        //   0(0):
-        // so 7 partitioned between 3 has 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 = 36 ways
-
-        // for 2 buttons, there are n + 1 partitions
-        // for 3 buttons there are
-
-        // (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}
-
-        // for 0 buttons, there is 1 way p(0, 1) = 0
-        // for 1 button there is sum(0..n) {i * 1} way
-        // for 2 buttons there are sum(0..n) {p(1, i) }
-
-        // I'm guessing that for n buttons, p(n, k) = sum(0..k) {p(n-1, i)}, p(0, _) = 1
-        // this is the weak composition problem
-
-
-        let mut known_states: HashSet<Vec<u16>> = vec![self.initial_joltage_state()].into_iter().collect();
-        let mut visited_states: HashSet<Vec<u16>> = HashSet::new();
-        let mut button_press_count = 0;
-
-        println!("Machine: {:?}", self);
-
-        loop {
-            let states_to_process: Vec<Vec<u16>> = known_states.difference(&visited_states).cloned().collect();
-            button_press_count += 1;
-
-            for starting_state in states_to_process {
-                println!("Starting state: {:?}", starting_state);
-
-                for button in self.buttons.iter() {
-                    let new_state = Self::apply_joltage_button_press(&starting_state, button);
-
-                    println!("New state: {:?}", new_state);
-
-                    if !self.valid_joltage_state(&new_state) {
-                        continue;
-                    }
-
-                    if visited_states.contains(&new_state) {
-                        continue;
-                    }
-
-                    if new_state == self.joltages_target {
-                        return button_press_count;
-                    }
-
-                    known_states.insert(new_state);
+    fn buttons_by_position(&self) -> Vec<Vec<usize>> {
+        (0..self.joltages_target.len()).map(|position| {
+            self.buttons.iter().enumerate().filter_map(|(button_index, button)|
+                if button.contains(&position) {
+                    Some(button_index)
+                } else {
+                    None
                 }
+            ).collect()
+        }).collect()
+    }
 
-                visited_states.insert(starting_state);
-            }
+    fn valid_button_press_sequences_by_position(&self) -> Vec<Vec<ButtonPressSequence>> {
+        let buttons_by_position = self.buttons_by_position();
+
+        buttons_by_position.iter().zip(self.joltages_target.iter()).map(|(buttons, target)| {
+            let partitions = Self::weak_partitions(*target, buttons.len());
+
+            partitions.iter().map(|partition| {
+                let button_counts = partition.iter()
+                    .enumerate()
+                    .map(|(group_index, count)| (buttons[group_index], *count));
+
+                ButtonPressSequence::new(button_counts)
+            }).collect()
+        }).collect()
+    }
+
+    fn weak_partitions(target: u16, parts: usize) -> Vec<Vec<u16>> {
+        let partitions: Vec<Vec<u16>> = vec![Vec::new(); 1];
+        Self::build_weak_partitions(target, parts, &partitions)
+    }
+
+    fn build_weak_partitions(target: u16, parts: usize, partitions: &Vec<Vec<u16>>) -> Vec<Vec<u16>> {
+        if parts == 1 {
+            return partitions.into_iter().map(|partition| {
+                [partition.as_slice(), &[target]].concat()
+            }).collect();
         }
+
+        (0..=target).flat_map(|next_partition_size| {
+            let new_partitions: Vec<Vec<u16>> = partitions.iter().map(|partition| {
+                [partition.as_slice(), &[next_partition_size]].concat()
+            }).collect();
+
+            Self::build_weak_partitions(
+                target - next_partition_size,
+                parts - 1,
+                &new_partitions
+            )
+        }).collect()
     }
 
     fn initial_indicator_light_state(&self) -> Vec<bool> {
@@ -148,25 +122,58 @@ impl Machine {
 
         new_state
     }
+}
 
-    fn initial_joltage_state(&self) -> Vec<u16> {
-        vec![0; self.joltages_target.len()]
-    }
+#[derive(Clone)]
+#[derive(Debug)]
+struct ButtonPressSequence {
+    counts_by_button: HashMap<usize, u16>,
+}
 
-    fn apply_joltage_button_press(state: &Vec<u16>, button: &Vec<usize>) -> Vec<u16> {
-        let mut new_state = state.clone();
-
-        for joltage_index in button {
-            new_state[*joltage_index] += 1;
+impl ButtonPressSequence {
+    pub fn new<I: IntoIterator<Item = (usize, u16)>>(button_counts: I) -> Self {
+        Self {
+            counts_by_button: button_counts.into_iter()
+                .filter(|(_, count)| *count > 0)
+                .collect(),
         }
-
-        new_state
     }
 
-    fn valid_joltage_state(&self,state: &Vec<u16>) -> bool {
-        state.iter()
-            .zip(self.joltages_target.iter())
-            .all(|(state_value, target_value)| state_value <= target_value)
+    pub fn button_presses(&self) -> u16 {
+        self.counts_by_button.values().sum()
+    }
+
+    pub fn compatible_with(&self, other: &ButtonPressSequence) -> bool {
+        self.counts_by_button.iter().all(|(button, count)| {
+            match other.counts_by_button.get(button) {
+                Some(other_count) => *count == *other_count,
+                None => true,
+            }
+        })
+    }
+
+    pub fn add(&self, other: &ButtonPressSequence) -> Self {
+        let mut new_counts_by_button = self.counts_by_button.clone();
+        new_counts_by_button.extend(other.counts_by_button.iter().map(|(k, v)| (*k, *v)));
+        Self { counts_by_button: new_counts_by_button }
+    }
+
+    pub fn cartesian_product(groups: &Vec<Vec<ButtonPressSequence>>) -> Vec<ButtonPressSequence> {
+        groups.iter().cloned().reduce(|mut product, group| {
+            product = product.iter().flat_map(|sequence| {
+                let sequence = sequence.clone();
+
+                group.iter().filter_map(move |other_sequence| {
+                    if !sequence.compatible_with(other_sequence) {
+                        return None;
+                    }
+
+                    Some(sequence.add(other_sequence))
+                })
+            }).collect::<Vec<ButtonPressSequence>>();
+
+            product
+        }).unwrap_or_else(|| Vec::new())
     }
 }
 
