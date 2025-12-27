@@ -6,11 +6,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let machines = Machine::parse_all(&_input)?;
 
-    let minimal_button_presses_to_solve: usize = machines.iter()
-        .map(|machine| machine.min_button_press_count())
+    let indicator_light_min_button_press_count: usize = machines.iter()
+        .map(|machine| machine.indicator_light_min_button_press_count())
         .sum();
 
-    println!("Minimal button presses to solve: {}", minimal_button_presses_to_solve);
+    let joltage_min_button_press_count: usize = machines.iter()
+        .map(|machine| machine.joltage_min_button_press_count())
+        .sum();
+
+    println!("Indicator lights minimum button press count: {}", indicator_light_min_button_press_count);
+    println!("Joltages minimum button press count: {}", joltage_min_button_press_count);
 
     Ok(())
 }
