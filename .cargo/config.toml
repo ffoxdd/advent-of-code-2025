@@ -1,0 +1,11 @@
+[env]
+ORTOOLS_PREFIX = "/opt/homebrew/opt/or-tools"
+CXX = "clang++"
+CXXFLAGS = "-I/opt/homebrew/opt/abseil/include -I/opt/homebrew/opt/protobuf/include -DOR_PROTO_DLL="
+MACOSX_DEPLOYMENT_TARGET = "26.0"
+
+[build]
+rustflags = [
+  "-C", "link-arg=-L/opt/homebrew/opt/protobuf/lib",
+  "-C", "link-arg=-lprotobuf-lite",
+]
